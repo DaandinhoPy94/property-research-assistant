@@ -56,9 +56,11 @@ def read_root():
         "status": "active",
         "endpoints": {
             "docs": "/docs",
-            "health": "/health",
+            "health": "/health", 
             "analyze": "/analyze_location",
-            "webhook": "/webhook/property_added"
+            "webhook": "/webhook/property_added",
+            "sheets": "/sheets/info",
+            "sheets_create": "/sheets/create"
         }
     }
 
@@ -149,6 +151,20 @@ async def analyze_location(property: PropertyRequest):
         )
         
         print(f"✅ Analysis completed in {processing_time:.2f} seconds")
+        
+        # Step 8: Save to Google Sheets (optional)
+        try:
+            print("📊 Saving to Google Sheets...")
+            import sys
+            import os
+            sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+            from sheets_connector import sheets_manager
+            
+            sheets_manager.add_property(property.dict(), response.dict())
+            print("✅ Saved to Google Sheets")
+        except Exception as sheets_error:
+            print(f"⚠️ Sheets save failed: {str(sheets_error)}")
+        
         return response
         
     except Exception as e:
@@ -441,10 +457,57 @@ def generate_recommendation(market_score, price_delta, location_score):
     else:
         return "🔴 AFWACHTEN - Risico's overwegen voordelen"
 
+# Google Sheets management endpoints
 @app.get("/sheets/info")
 def get_sheets_info():
     """Get information about connected Google Sheets"""
-    return {"test": "sheets endpoint works"}
+    try:
+        import sys
+        import os
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        from sheets_connector import sheets_manager
+        
+        return sheets_manager.get_spreadsheet_info()
+    except Exception as e:
+        return {"error": str(e), "connected": False}
+
+@app.post("/sheets/create")
+def create_property_spreadsheet():
+    """Create a new property research spreadsheet"""
+    try:
+        import sys
+        import os
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        from sheets_connector import sheets_manager
+        
+        spreadsheet_id = sheets_manager.create_property_database()
+        
+        if spreadsheet_id:
+            return {
+                "success": True,
+                "spreadsheet_id": spreadsheet_id,
+                "url": f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}",
+                "message": "Spreadsheet created successfully"
+            }
+        else:
+            return {"success": False, "error": "Failed to create spreadsheet"}
+            
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.post("/sheets/add_sample_data")
+def add_sample_data():
+    """Add sample property data for testing"""
+    try:
+        import sys
+        import os
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        from sheets_connector import sheets_manager
+        
+        sheets_manager.create_sample_data()
+        return {"success": True, "message": "Sample data added"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 # For running the API locally
 if __name__ == "__main__":
